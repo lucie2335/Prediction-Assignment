@@ -1,0 +1,89 @@
+---
+title: "Prediction-Assignment"
+date: "1/24/2023"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+# 1. Project goal
+
+The goal of the project is to predict the manner in which 6 individuals exercised using data from accelerometers on the belt, forearm, arm, and dumbell,  using machine learning algorithm.
+
+They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+The main goal of the project is to predict the manner in which 6 participants performed those exercise. This is the “classe” variable in the training set, the one we aim to predict. 
+
+# 2. Data Loading and Cleaning
+
+## a. Data Source & Reproduceability
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+More information on the experiment is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset)
+
+```{r doownloading the data, include=FALSE}
+library(caret)
+library(rio)
+link_train<-"/Users/luciecrepaux/Documents/2 - Coursera/Cours 8 Practical machine learning/pml-training.csv"
+link_test<-"/Users/luciecrepaux/Documents/2 - Coursera/Cours 8 Practical machine learning/pml-testing.csv"
+training<-rio::import(link_train)
+testing<-rio::import(link_test)
+```
+
+The following packages are needed to reproduce the results of this project : caret, rio.
+
+## b. Partition of the training set (for cross validation)
+In order to get out-of-sample errors, we split the training data in training (75%) and testing (25%) data subsets.
+```{r partition, include=TRUE}
+set.seed(3011)
+inTrain <- createDataPartition(y=training$classe, p=0.75, list=FALSE)
+TrainSet <- training[inTrain, ]
+TestSet  <- training[-inTrain, ]
+```
+## c. Removing the near zero variables as well as the "mostly NAs" variables
+Both created datasets have 160 variables. 
+
+```{r cleaning variables, include=TRUE}
+#NZV
+NZV <- nearZeroVar(TrainSet)
+TrainSet <- TrainSet[, -NZV]
+TestSet  <- TestSet[, -NZV]
+# remove "mostly NAs" variables
+AllNA    <- sapply(TrainSet, function(x) mean(is.na(x))) > 0.95
+TrainSet <- TrainSet[, AllNA==FALSE]
+TestSet  <- TestSet[, AllNA==FALSE]
+```
+
+```{r number of remaining variables, echo=FALSE}
+ print(dim(TrainSet)[2])
+```
+There are now 59 variables remaining, vs 160 initially.
+
+## d. A quick glance at the data in the classe variable (the one we aim to predict)
+
+```{r vizualising classe, include=TRUE}
+print(table(TrainSet$classe))
+```
+
+
+# Model building : random forest
+
+We have uses K- fold Cross Validation for 3 iterations to create a number of partitions of sample observations, known as the validation sets, from the training data set. 
+After fitting a model on to the training data, its performance is measured against each validation set and then averaged, gaining a better assessment of how the model will perform when asked to predict for new observations.
+```{r model building , include=TRUE}
+set.seed(301)
+#for the K-fold
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+#model
+modelRF <- train(classe ~ ., data=TrainSet, method="rf", trControl=controlRF)
+```
+
+```{r model validation , include=TRUE}
+prediction <- predict(modelRF, TestSet)
+confusionMatrix(prediction, as.factor(TestSet$classe))
+```
+
+# Conclusion
+Based on this result, this model as a 100% accuracy.
